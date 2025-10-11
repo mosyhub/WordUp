@@ -1,8 +1,13 @@
 @"
+# Large model files
+*.bin
+ggml-*
+models/
+wordup/wordup-backend/models/
+
 # Dependencies
 node_modules/
-wordup-backend/node_modules/
-wordup-frontend/node_modules/
+*/node_modules/
 
 # Environment
 .env
@@ -19,4 +24,4 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
-"@ | Out-File -FilePath .gitignore -Encoding ASCII
+"@ | Out-File -FilePath .gitignore -Encoding UTF8
