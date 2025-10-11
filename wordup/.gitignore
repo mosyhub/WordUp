@@ -1,0 +1,22 @@
+@"
+# Dependencies
+node_modules/
+wordup-backend/node_modules/
+wordup-frontend/node_modules/
+
+# Environment
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding ASCII
