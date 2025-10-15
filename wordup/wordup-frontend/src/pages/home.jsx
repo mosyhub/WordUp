@@ -1,6 +1,22 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem("token");
+    setIsLoggedIn(!!token);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsLoggedIn(false);
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 flex flex-col">
       {/* Navbar */}
@@ -10,9 +26,24 @@ export default function Home() {
         </h1>
         <nav className="space-x-6">
           <Link to="/" className="text-gray-600 hover:text-indigo-600 transition">Home</Link>
-          <Link to="/login" className="text-gray-600 hover:text-indigo-600 transition">Login</Link>
-          <Link to="/register" className="text-gray-600 hover:text-indigo-600 transition">Register</Link>
-          <Link to="/practice" className="text-gray-600 hover:text-indigo-600 transition">Practice</Link>
+          
+          {isLoggedIn ? (
+            <>
+              <Link to="/practice" className="text-gray-600 hover:text-indigo-600 transition">Practice</Link>
+              <button 
+                onClick={handleLogout}
+                className="text-gray-600 hover:text-red-600 transition"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="text-gray-600 hover:text-indigo-600 transition">Login</Link>
+              <Link to="/register" className="text-gray-600 hover:text-indigo-600 transition">Register</Link>
+              <Link to="/practice" className="text-gray-600 hover:text-indigo-600 transition">Practice</Link>
+            </>
+          )}
         </nav>
       </header>
 

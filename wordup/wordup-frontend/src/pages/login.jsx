@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -14,8 +15,18 @@ export default function Login() {
         email,
         password,
       });
-      setMessage("✅ " + res.data.message);
+      
+      // Save token and user data
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      
+      // Redirect based on role
+      if (res.data.user.role === 'admin') {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
+      
     } catch (err) {
       setMessage("❌ " + (err.response?.data?.message || "Error logging in"));
     }
@@ -66,7 +77,7 @@ export default function Login() {
               Login
             </button>
           </form>
-          {message && <p className="text-center mt-4">{message}</p>}
+          {message && <p className="text-center mt-4 text-red-600">{message}</p>}
           <p className="text-center text-gray-600 mt-4 text-sm">
             Don't have an account? <Link to="/register" className="text-indigo-600 hover:underline">Register here</Link>
           </p>
