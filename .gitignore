@@ -1,0 +1,27 @@
+# Model files (too large)
+**/models/*.bin
+**/models/*.ggml
+**/models/ggml-*
+
+# Uploads
+**/uploads/**
+!**/uploads/.gitkeep
+
+# Node modules
+**/node_modules/
+
+# Environment variables
+**/.env
+**/.env.local
+
+# Build files
+**/dist/
+**/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
