@@ -49,6 +49,31 @@ router.post('/', authMiddleware, async (req, res) => {
       console.log('ℹ️ No speechId provided (free practice)');
     }
 
+    // If no speechId provided, create a new Speech entry from the practice session
+    if (!validSpeechId) {
+      console.log('📝 No speechId provided - creating new Speech entry...');
+      
+      // Generate a title from transcript (first 50 chars or "Practice Session")
+      const transcriptPreview = transcript.trim().substring(0, 50);
+      const title = transcriptPreview.length < transcript.trim().length 
+        ? `${transcriptPreview}...` 
+        : transcriptPreview || 'Practice Session';
+      
+      // Create new speech from practice transcript
+      const newSpeech = new Speech({
+        userId,
+        title: title.length > 100 ? title.substring(0, 100) : title,
+        originalDraft: transcript,
+        improvedVersion: transcript, // Use transcript as improved version initially
+        practiceCount: 0, // Will be incremented below
+        lastPracticedAt: new Date()
+      });
+      
+      await newSpeech.save();
+      validSpeechId = newSpeech._id;
+      console.log('✅ Created new Speech entry:', newSpeech._id, 'with title:', newSpeech.title);
+    }
+
     // Create practice session
     const session = new PracticeSession({
       userId,
@@ -65,9 +90,9 @@ router.post('/', authMiddleware, async (req, res) => {
     await session.save();
     console.log('✅ Practice session saved:', session._id);
 
-    // If practicing a saved speech, update its practice count
+    // Update the speech's practice count
     if (validSpeechId) {
-      console.log('🎯 Attempting to increment practice count for speech:', validSpeechId);
+      console.log('🎯 Updating practice count for speech:', validSpeechId);
       
       const speech = await Speech.findById(validSpeechId);
       
@@ -85,8 +110,6 @@ router.post('/', authMiddleware, async (req, res) => {
         const updatedSpeech = await Speech.findById(validSpeechId);
         console.log('✅ Updated practice count:', updatedSpeech.practiceCount);
       }
-    } else {
-      console.log('ℹ️ No valid speechId - skipping practice count increment');
     }
 
     res.status(201).json({

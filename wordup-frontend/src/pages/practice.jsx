@@ -384,15 +384,30 @@ export default function Practice() {
     // Calculate duration
     const duration = recordingStartTime ? Math.round((Date.now() - recordingStartTime) / 1000) : 0;
     
-    // Use the accumulated final transcript
-    const finalText = finalTranscriptRef.current.trim();
+    // Get the final transcript from ref
+    const finalFromRef = finalTranscriptRef.current.trim();
     
-    console.log('Final accumulated transcript:', finalText);
+    // Also check current state (which includes interim results that might not be finalized yet)
+    const currentTranscript = transcript.trim();
+    const currentInterim = interimTranscript.trim();
+    const combinedFromState = (currentTranscript + ' ' + currentInterim).trim();
+    
+    // Use the best available transcript: prefer final ref, but fall back to state if ref is empty
+    // This handles cases where user stops before interim results are finalized
+    const finalText = finalFromRef || combinedFromState;
+    
+    console.log('Final accumulated transcript (ref):', finalFromRef);
+    console.log('Current transcript (state):', currentTranscript);
+    console.log('Current interim (state):', currentInterim);
+    console.log('Combined from state:', combinedFromState);
+    console.log('Using final text:', finalText);
     console.log('Word count:', finalText.split(/\s+/).filter(w => w).length);
     
     if (finalText && finalText.length > 0) {
       setTranscript(finalText);
       setInterimTranscript("");
+      // Update the ref as well for consistency
+      finalTranscriptRef.current = finalText;
       analyzeSpeech(finalText, duration);
     } else {
       alert("⚠️ No speech detected. Please try again and speak clearly.");
