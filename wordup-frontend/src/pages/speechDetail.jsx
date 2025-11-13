@@ -45,28 +45,70 @@ export default function SpeechDetail() {
     }
   };
 
-  // ✅ Extract ONLY the enhanced script (no feedback, no strengths)
+  // ✅ Extract ONLY the enhanced script (no feedback, no strengths, no suggestions)
   const extractEnhancedScript = (aiResponse) => {
     if (!aiResponse) return null;
     
+    // Pattern to match VERSION header and extract content until next section
+    // Stops at any uppercase section header (like "GRAMMAR ISSUES:", "TIPS:", "SUGGESTIONS:", etc.)
     const versionPatterns = [
-      /(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*\n([\s\S]*?)(?:\n\n(?:STRENGTHS?|KEY IMPROVEMENTS|SUGGESTIONS|FEEDBACK|ANALYSIS|EXPLANATION|NOTES?):|$)/i,
-      /(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*([\s\S]*?)(?:\n\n(?:STRENGTHS?|KEY IMPROVEMENTS|SUGGESTIONS|FEEDBACK|ANALYSIS|EXPLANATION|NOTES?):|$)/i
+      // Pattern 1: VERSION: followed by newline, then content until next uppercase section header (with single or double newline)
+      /(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*\n([\s\S]*?)(?=\n+[A-Z][A-Z\s]+:|$)/i,
+      // Pattern 2: VERSION: without newline, then content until next uppercase section header
+      /(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*([\s\S]*?)(?=\n+[A-Z][A-Z\s]+:|$)/i,
+      // Pattern 3: VERSION: followed by content until any known section header (more flexible)
+      /(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*([\s\S]*?)(?=\n+(?:[A-Z][A-Z\s]+:|STRENGTHS?|KEY IMPROVEMENTS|SUGGESTIONS|FEEDBACK|ANALYSIS|EXPLANATION|NOTES?|GRAMMAR|VOCABULARY|TONE|ENGAGEMENT|DELIVERY|PERSUASIVE|IMPACT|WHAT WAS|BREVITY|FORMALITY|PROFESSIONAL|CONTEXT|ISSUES|TIPS|ADJUSTMENTS|UPGRADES|ELEMENTS|REMOVED):|$)/i
     ];
 
     for (const pattern of versionPatterns) {
       const match = aiResponse.match(pattern);
       if (match && match[1]) {
-        return match[1].trim();
+        const extracted = match[1].trim();
+        // Make sure we got actual content (not empty or too short)
+        if (extracted.length > 20) {
+          return extracted;
+        }
       }
     }
 
-    const firstSectionMatch = aiResponse.match(/^([\s\S]*?)(?:\n\n[A-Z\s]+:|$)/);
+    // Fallback: Try to extract first substantial block before any section header
+    const firstSectionMatch = aiResponse.match(/^([\s\S]*?)(?=\n+[A-Z][A-Z\s]+:|$)/);
     if (firstSectionMatch && firstSectionMatch[1]) {
       const content = firstSectionMatch[1].trim();
-      if (content.length > 50) {
-        return content;
+      // Remove any VERSION header if present
+      const cleaned = content.replace(/^(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:\s*/i, '').trim();
+      if (cleaned.length > 20) {
+        return cleaned;
       }
+    }
+
+    // Last resort: return the response but try to remove common section headers
+    const lines = aiResponse.split('\n');
+    const result = [];
+    let foundVersion = false;
+    let stopCollecting = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Check if this is a VERSION header
+      if (/^(?:IMPROVED|ENHANCED|CORRECTED|ACADEMIC|CONVERSATIONAL|PERSUASIVE|CONCISE|FORMAL)\s+VERSION:/i.test(line)) {
+        foundVersion = true;
+        continue; // Skip the header line itself
+      }
+      
+      // If we found version, start collecting
+      if (foundVersion) {
+        // Stop if we hit another section header (uppercase words followed by colon)
+        if (/^[A-Z][A-Z\s]+:$/.test(line.trim())) {
+          stopCollecting = true;
+          break;
+        }
+        result.push(line);
+      }
+    }
+    
+    if (result.length > 0) {
+      return result.join('\n').trim();
     }
 
     return aiResponse;

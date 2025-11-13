@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
@@ -93,6 +94,33 @@ export default function AdminDashboard() {
   const totalPractices = speeches.reduce((sum, s) => sum + s.practiceCount, 0);
   const adminCount = users.filter(u => u.role === 'admin').length;
   const userCount = users.filter(u => u.role === 'user').length;
+
+  // Calculate demographics data
+  const userTypeData = users.reduce((acc, user) => {
+    const type = user.userType || 'other';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+
+  const usageContextData = users.reduce((acc, user) => {
+    const context = user.usageContext || 'other';
+    acc[context] = (acc[context] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Format data for charts
+  const userTypeChartData = Object.entries(userTypeData).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value
+  }));
+
+  const usageContextChartData = Object.entries(usageContextData).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value
+  }));
+
+  // Colors for charts
+  const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-red-900 to-orange-900 relative overflow-hidden">
@@ -257,6 +285,115 @@ export default function AdminDashboard() {
                       System Overview
                     </h3>
                     
+                    {/* Demographics Charts */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                      {/* User Type Distribution */}
+                      <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-200">
+                        <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          User Type Distribution
+                        </h4>
+                        {userTypeChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={userTypeChartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={100}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {userTypeChartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="text-center py-12 text-gray-500">
+                            No user type data available
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Usage Context Distribution */}
+                      <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-200">
+                        <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                          </svg>
+                          Usage Context Distribution
+                        </h4>
+                        {usageContextChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={usageContextChartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={100}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {usageContextChartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="text-center py-12 text-gray-500">
+                            No usage context data available
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bar Chart for Demographics */}
+                    <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-200 mb-8">
+                      <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Demographics Overview
+                      </h4>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                          <h5 className="text-lg font-semibold text-gray-700 mb-3 text-center">User Types</h5>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={userTypeChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="value" fill="#3b82f6" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div>
+                          <h5 className="text-lg font-semibold text-gray-700 mb-3 text-center">Usage Contexts</h5>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={usageContextChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="value" fill="#22c55e" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {/* Recent Activity */}
                     <div>
                       <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -330,6 +467,8 @@ export default function AdminDashboard() {
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Name</th>
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Email</th>
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Role</th>
+                            <th className="px-6 py-4 text-left text-sm font-black text-gray-800">User Type</th>
+                            <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Usage Context</th>
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Speeches</th>
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Joined</th>
                             <th className="px-6 py-4 text-left text-sm font-black text-gray-800">Actions</th>
@@ -349,6 +488,16 @@ export default function AdminDashboard() {
                                       : 'bg-blue-100 text-blue-700'
                                   }`}>
                                     {user.role.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                                    {(user.userType || 'other').charAt(0).toUpperCase() + (user.userType || 'other').slice(1)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                    {(user.usageContext || 'other').charAt(0).toUpperCase() + (user.usageContext || 'other').slice(1)}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 font-bold text-gray-900">{userSpeeches}</td>

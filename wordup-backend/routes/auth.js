@@ -12,7 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallbackSecret";
 // REGISTER
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, userType, usageContext } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
@@ -30,6 +30,8 @@ router.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       role: role || "user", // default to user
+      userType: userType || "other",
+      usageContext: usageContext || "other"
     });
 
     await newUser.save();
