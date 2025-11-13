@@ -11,7 +11,6 @@ import SavedSpeeches from './pages/savedSpeeches';
 import PracticeHistory from "./pages/practiceHistory";
 import ProgressPage from './pages/progressPage';
 
-
 export default function App() {
   return (
     <Routes>

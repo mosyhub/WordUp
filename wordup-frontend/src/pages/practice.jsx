@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getAIFeedback } from "../services/aiFeedback";
+import { synthesizeSpeech, lookupPronunciation } from "../services/pronunciation";
 import Header from "../components/Header";
 
 export default function Practice() {
@@ -20,6 +21,14 @@ export default function Practice() {
   const [currentAttempt, setCurrentAttempt] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
   const [recordingStartTime, setRecordingStartTime] = useState(null);
+  const [ttsInput, setTtsInput] = useState("");
+  const [ttsAudioUrl, setTtsAudioUrl] = useState("");
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsError, setTtsError] = useState("");
+  const [pronunciationWord, setPronunciationWord] = useState("");
+  const [pronunciationResult, setPronunciationResult] = useState(null);
+  const [pronunciationLoading, setPronunciationLoading] = useState(false);
+  const [pronunciationError, setPronunciationError] = useState("");
   
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef("");
@@ -518,6 +527,44 @@ export default function Practice() {
     return "Poor";
   };
 
+  const handleSynthesizeSpeech = async () => {
+    if (!ttsInput.trim()) {
+      setTtsError("Enter some text to synthesize.");
+      return;
+    }
+
+    try {
+      setTtsLoading(true);
+      setTtsError("");
+      const audioUrl = await synthesizeSpeech(ttsInput);
+      setTtsAudioUrl(audioUrl);
+    } catch (error) {
+      setTtsError(error.message || "Failed to synthesize speech.");
+      setTtsAudioUrl("");
+    } finally {
+      setTtsLoading(false);
+    }
+  };
+
+  const handlePronunciationLookup = async () => {
+    if (!pronunciationWord.trim()) {
+      setPronunciationError("Enter a word to check pronunciation.");
+      return;
+    }
+
+    try {
+      setPronunciationLoading(true);
+      setPronunciationError("");
+      const result = await lookupPronunciation(pronunciationWord.trim());
+      setPronunciationResult(result);
+    } catch (error) {
+      setPronunciationError(error.message || "Unable to find pronunciation.");
+      setPronunciationResult(null);
+    } finally {
+      setPronunciationLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 relative overflow-hidden">
       
@@ -1013,6 +1060,98 @@ export default function Practice() {
               </pre>
             </div>
           )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 border border-purple-100">
+              <div className="flex items-center gap-3 mb-4">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5a1 1 0 112 0v3.382a1 1 0 00.553.894l3.382 1.691a1 1 0 010 1.789l-3.382 1.691a1 1 0 00-.553.894V19a1 1 0 11-2 0v-3.382a1 1 0 00-.553-.894l-3.382-1.691a1 1 0 010-1.789l3.382-1.691A1 1 0 0011 8.382V5z" />
+                </svg>
+                <h3 className="text-2xl font-black text-gray-900">Text to Speech</h3>
+              </div>
+              <p className="text-gray-600 mb-4">
+                Paste any sentence and hear the correct pronunciation instantly.
+              </p>
+              <textarea
+                value={ttsInput}
+                onChange={(e) => setTtsInput(e.target.value)}
+                rows="4"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+                placeholder="Type the sentence you want to hear..."
+              />
+              {ttsError && (
+                <p className="mt-2 text-sm text-red-600 font-semibold">{ttsError}</p>
+              )}
+              <button
+                onClick={handleSynthesizeSpeech}
+                disabled={ttsLoading}
+                className="mt-4 px-5 py-3 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-xl font-semibold shadow hover:from-purple-700 hover:to-violet-700 transition-all disabled:opacity-60"
+              >
+                {ttsLoading ? "Generating audio..." : "Play Pronunciation"}
+              </button>
+              {ttsAudioUrl && (
+                <div className="mt-4 space-y-2">
+                  <audio controls src={ttsAudioUrl} className="w-full rounded-xl" />
+                  <a
+                    href={ttsAudioUrl}
+                    download="wordup-tts.mp3"
+                    className="inline-block text-sm font-semibold text-purple-600 hover:text-purple-700"
+                  >
+                    Download audio
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-2xl p-8 border border-blue-100">
+              <div className="flex items-center gap-3 mb-4">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
+                </svg>
+                <h3 className="text-2xl font-black text-gray-900">Pronunciation Helper</h3>
+              </div>
+              <p className="text-gray-600 mb-4">
+                Check the phonetics and listen to the correct pronunciation of any word.
+              </p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={pronunciationWord}
+                  onChange={(e) => setPronunciationWord(e.target.value)}
+                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all uppercase tracking-wide"
+                  placeholder="Enter a word"
+                />
+                <button
+                  onClick={handlePronunciationLookup}
+                  disabled={pronunciationLoading}
+                  className="px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-60"
+                >
+                  {pronunciationLoading ? "Checking..." : "Check"}
+                </button>
+              </div>
+              {pronunciationError && (
+                <p className="mt-2 text-sm text-red-600 font-semibold">{pronunciationError}</p>
+              )}
+              {pronunciationResult && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <h4 className="text-lg font-black text-blue-700">{pronunciationResult.word}</h4>
+                    <span className="px-3 py-1 bg-white text-blue-600 rounded-full text-xs font-bold border border-blue-200">
+                      {pronunciationResult.phonetic}
+                    </span>
+                  </div>
+                  <audio
+                    controls
+                    src={pronunciationResult.audioUrl}
+                    className="w-full mt-3 rounded-xl"
+                  />
+                  <p className="text-xs text-blue-600 mt-2">
+                    Source: {pronunciationResult.source}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
         </div>
       </div>

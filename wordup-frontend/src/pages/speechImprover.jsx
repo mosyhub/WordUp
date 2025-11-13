@@ -73,200 +73,6 @@ export default function SpeechImprover() {
     setHasUnsavedChanges(titleChanged || draftChanged || improvedChanged || suggestionsChanged);
   }, [title, originalDraft, improvedVersion, aiSuggestions, lastSavedTitle, lastSavedDraft, lastSavedImproved, lastSavedSuggestions]);
 
-  const getAnalysisPrompt = () => {
-    const prompts = {
-      full: `You are an expert speech coach. Analyze this speech with a professional, clean format.
-
-IMPORTANT: Write in plain text only. No markdown, no asterisks, no special formatting. Use simple dashes for bullet points.
-
-Provide your analysis in this exact format:
-
-IMPROVED VERSION:
-[Write the improved speech here in plain text]
-
-STRENGTHS:
-- [First strength]
-- [Second strength]  
-- [Third strength]
-
-AREAS FOR IMPROVEMENT:
-- [First area]
-- [Second area]
-- [Third area]
-
-SPECIFIC SUGGESTIONS:
-- [First tip]
-- [Second tip]
-- [Third tip]
-
-Original Speech: "${originalDraft}"
-
-Remember: Keep it professional, encouraging, and formatted cleanly with NO markdown symbols.`,
-
-      grammar: `You are a grammar expert. Fix ONLY grammar errors in this speech.
-
-IMPORTANT: Write in plain text only. No markdown, no asterisks, no special formatting.
-
-Provide your analysis in this exact format:
-
-CORRECTED VERSION:
-[Write the corrected speech here]
-
-GRAMMAR ISSUES FOUND:
-- Issue 1: [Describe the error and why it's wrong]
-- Issue 2: [Describe the error and why it's wrong]
-- Issue 3: [Describe the error and why it's wrong]
-
-GRAMMAR TIPS:
-- Tip 1: [Practical advice]
-- Tip 2: [Practical advice]
-- Tip 3: [Practical advice]
-
-Original Speech: "${originalDraft}"
-
-Be detailed but keep formatting clean and professional.`,
-
-      vocabulary: `You are a vocabulary enhancement specialist. Improve word choices in this speech.
-
-IMPORTANT: Write in plain text. No markdown or special characters.
-
-Format your response like this:
-
-ENHANCED VERSION:
-[Rewrite with better vocabulary]
-
-VOCABULARY UPGRADES:
-- Changed [old word] to [new word] because [reason]
-- Changed [old word] to [new word] because [reason]
-- Changed [old word] to [new word] because [reason]
-
-CONTEXT TIPS:
-- [Tip about word choice]
-- [Tip about word choice]
-- [Tip about word choice]
-
-Original Speech: "${originalDraft}"
-
-Keep tone natural while elevating vocabulary.`,
-
-      academic: `You are an academic writing expert. Transform this into academic tone.
-
-IMPORTANT: Plain text only. No markdown formatting.
-
-Format:
-
-ACADEMIC VERSION:
-[Rewritten in formal academic language]
-
-TONE ADJUSTMENTS:
-- Changed: [What you changed and why]
-- Changed: [What you changed and why]
-- Changed: [What you changed and why]
-
-ACADEMIC WRITING TIPS:
-- [Tip 1]
-- [Tip 2]
-- [Tip 3]
-
-Original Speech: "${originalDraft}"
-
-Use formal language, avoid contractions, add transitional phrases.`,
-
-      conversational: `You are a conversational speech coach. Make this natural and engaging.
-
-IMPORTANT: Plain text format only.
-
-Format:
-
-CONVERSATIONAL VERSION:
-[Rewritten in natural, friendly tone]
-
-ENGAGEMENT TECHNIQUES:
-- [Technique 1 used]
-- [Technique 2 used]
-- [Technique 3 used]
-
-DELIVERY TIPS:
-- [Tip 1]
-- [Tip 2]
-- [Tip 3]
-
-Original Speech: "${originalDraft}"
-
-Use contractions, casual language, rhetorical questions where appropriate.`,
-
-      persuasive: `You are a persuasive communication expert. Make this speech highly persuasive.
-
-IMPORTANT: Clean plain text format.
-
-Format:
-
-PERSUASIVE VERSION:
-[Rewritten with persuasive techniques]
-
-PERSUASIVE ELEMENTS ADDED:
-- Ethos: [How you established credibility]
-- Pathos: [How you appealed to emotion]
-- Logos: [How you used logic]
-
-IMPACT TIPS:
-- [Tip 1]
-- [Tip 2]
-- [Tip 3]
-
-Original Speech: "${originalDraft}"
-
-Add powerful calls to action and emotional appeals.`,
-
-      concise: `You are a conciseness expert. Make this speech shorter and punchier.
-
-IMPORTANT: Plain text only, no formatting symbols.
-
-Format:
-
-CONCISE VERSION:
-[Shortened version keeping core message]
-
-WHAT WAS REMOVED:
-- [Removed redundancy 1]
-- [Removed redundancy 2]
-- [Removed redundancy 3]
-
-BREVITY TIPS:
-- [Tip 1]
-- [Tip 2]
-- [Tip 3]
-
-Original Speech: "${originalDraft}"
-
-Aim to reduce word count by 30-40% while keeping key points.`,
-
-      formal: `You are a business communication expert. Make this professionally formal.
-
-IMPORTANT: Plain text format, professional tone.
-
-Format:
-
-FORMAL VERSION:
-[Rewritten in professional business tone]
-
-FORMALITY ADJUSTMENTS:
-- Changed: [What was informalized and how]
-- Changed: [What was informalized and how]
-- Changed: [What was informalized and how]
-
-PROFESSIONAL TIPS:
-- [Tip 1]
-- [Tip 2]
-- [Tip 3]
-
-Original Speech: "${originalDraft}"
-
-Use professional vocabulary, formal structure, business-appropriate language.`
-    };
-    return prompts[analysisType] || prompts.full;
-  };
-
   const analyzeSpeech = async () => {
     if (!originalDraft.trim()) {
       setError("Please enter your speech draft first");
@@ -278,28 +84,26 @@ Use professional vocabulary, formal structure, business-appropriate language.`
     setAiSuggestions("AI is analyzing your speech...");
 
     try {
-      const COHERE_API_KEY = "vZ6eRMVEtY8tSCzkqepuPoMPznKZlFvHFm4JUsYE";
-      
-      const response = await fetch('https://api.cohere.ai/v1/chat', {
+      const response = await fetch('http://localhost:5000/api/ai/improve', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${COHERE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: getAnalysisPrompt(),
-          model: 'command-r7b-12-2024',
+          draft: originalDraft,
+          analysisType,
         })
       });
 
       const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error(data.message || 'AI analysis failed');
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'AI analysis failed');
       }
 
-      setAiSuggestions(data.text);
-      setImprovedVersion(data.text);
+      const formattedSuggestions = formatAiSections(data.sections, data.text);
+      setAiSuggestions(formattedSuggestions);
+      setImprovedVersion(data.improvedVersion || data.text);
       
       // Mark as having unsaved changes since AI results changed
       setHasUnsavedChanges(true);
@@ -402,6 +206,16 @@ Use professional vocabulary, formal structure, business-appropriate language.`
     setError("");
     // Mark as having changes since we cleared the analysis
     setHasUnsavedChanges(true);
+  };
+
+  const formatAiSections = (sections, fallbackText = "") => {
+    if (!sections || Object.keys(sections).length === 0) {
+      return fallbackText;
+    }
+
+    return Object.entries(sections)
+      .map(([heading, content]) => `${heading}:\n${content}`)
+      .join("\n\n");
   };
 
   const cancelEdit = () => {
@@ -647,6 +461,34 @@ Use professional vocabulary, formal structure, business-appropriate language.`
               <pre className="p-6 bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl text-gray-700 shadow-inner min-h-[200px] whitespace-pre-wrap font-sans text-sm overflow-auto max-h-[500px] border-2 border-purple-200 leading-relaxed">
                 {aiSuggestions}
               </pre>
+            </div>
+          )}
+
+          {improvedVersion && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-xl font-black text-gray-900">Corrected Speech</h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setOriginalDraft(improvedVersion);
+                    setHasUnsavedChanges(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-lg font-semibold shadow hover:from-emerald-600 hover:to-green-600 transition-all"
+                >
+                  Replace Draft with Correction
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={improvedVersion}
+                rows="8"
+                className="w-full px-4 py-3 border-2 border-emerald-200 bg-emerald-50 rounded-xl text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              />
             </div>
           )}
 

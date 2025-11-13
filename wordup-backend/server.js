@@ -8,6 +8,7 @@ import audioRoutes from "./routes/audioRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import practiceRoutes from "./routes/practiceRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
 import { authMiddleware } from "./middleware/auth.js";
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.use(cors());
 // Register routes
 app.use('/api/progress', progressRoutes);
 app.use('/api/practice', practiceRoutes);
+app.use('/api/ai', aiRoutes);
 
 
 
@@ -48,6 +50,8 @@ app.use("/api/practice", practiceRoutes);
 console.log("  ✓ /api/practice (Practice sessions)");
 app.use("/api/progress", progressRoutes);
 console.log("  ✓ /api/progress (User progress)");
+app.use("/api/ai", aiRoutes);
+console.log("  ✓ /api/ai (AI feedback and improvement)");
 console.log("✅ All routes registered!\n");
 
 
@@ -83,6 +87,7 @@ app.use((req, res) => {
       admin: "/admin",
       practice: "/api/practice",
       progress: "/api/progress",
+      ai: "/api/ai",
     },
   });
 });

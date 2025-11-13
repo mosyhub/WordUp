@@ -31,7 +31,7 @@ router.post("/register", async (req, res) => {
       password: hashedPassword,
       role: role || "user", // default to user
       userType: userType || "other",
-      usageContext: usageContext || "other"
+      usageContext: usageContext || "other",
     });
 
     await newUser.save();
