@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, Area, AreaChart } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 
@@ -20,12 +20,17 @@ export default function AdvancedProgressDashboard() {
       const response = await fetch('http://localhost:5000/api/progress/overall', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.progress) {
         setProgress(data.progress);
+      } else {
+        console.error('Invalid progress data:', data);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching progress:', error);
     } finally {
       setLoading(false);
     }
@@ -37,12 +42,19 @@ export default function AdvancedProgressDashboard() {
       const response = await fetch('http://localhost:5000/api/progress/calendar', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.calendar)) {
         setCalendar(data.calendar);
+      } else {
+        console.error('Invalid calendar data:', data);
+        setCalendar([]);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching calendar:', error);
+      setCalendar([]);
     }
   };
 
@@ -93,39 +105,6 @@ export default function AdvancedProgressDashboard() {
     );
   }
 
-  // Prepare radar chart data
-  const radarData = progress.criteriaProgress ? [
-    {
-      criteria: 'Clarity',
-      current: progress.criteriaProgress.clarity?.current || 0,
-      best: progress.criteriaProgress.clarity?.best || 0,
-      fullMark: 100
-    },
-    {
-      criteria: 'Pace',
-      current: progress.criteriaProgress.pace?.current || 0,
-      best: progress.criteriaProgress.pace?.best || 0,
-      fullMark: 100
-    },
-    {
-      criteria: 'Vocabulary',
-      current: progress.criteriaProgress.vocabulary?.current || 0,
-      best: progress.criteriaProgress.vocabulary?.best || 0,
-      fullMark: 100
-    },
-    {
-      criteria: 'Structure',
-      current: progress.criteriaProgress.structure?.current || 0,
-      best: progress.criteriaProgress.structure?.best || 0,
-      fullMark: 100
-    },
-    {
-      criteria: 'Filler Words',
-      current: progress.criteriaProgress.fillerWords?.current || 0,
-      best: progress.criteriaProgress.fillerWords?.best || 0,
-      fullMark: 100
-    }
-  ] : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex flex-col relative overflow-hidden">
@@ -175,6 +154,26 @@ export default function AdvancedProgressDashboard() {
                 <div className="text-6xl">
                   {progress.improvement >= 20 ? '🚀' : progress.improvement >= 10 ? '📈' : progress.improvement >= 0 ? '✨' : '🎯'}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Skill Level Badge */}
+          {progress.skillLevel && (
+            <div className={`mb-8 rounded-2xl p-6 shadow-2xl bg-gradient-to-r ${
+              progress.skillLevel.color === 'purple' ? 'from-purple-500 to-indigo-500' :
+              progress.skillLevel.color === 'blue' ? 'from-blue-500 to-cyan-500' :
+              'from-green-500 to-emerald-500'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white text-lg font-medium mb-1">Your Skill Level</p>
+                  <p className="text-white text-4xl font-black mb-1">
+                    {progress.skillLevel.badge} {progress.skillLevel.level}
+                  </p>
+                  <p className="text-white/90 text-sm">{progress.skillLevel.description}</p>
+                </div>
+                <div className="text-6xl">{progress.skillLevel.badge}</div>
               </div>
             </div>
           )}
@@ -244,9 +243,70 @@ export default function AdvancedProgressDashboard() {
             </div>
           </div>
 
+          {/* New Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            {/* Consistency Score */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl hover:scale-105 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-orange-100 rounded-xl p-3">
+                  <span className="text-2xl">📅</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 font-medium">Consistency Score</p>
+                  <p className="text-3xl font-black text-orange-600">{progress.consistencyScore || 0}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {progress.practicesPerWeek || 0} this week • {progress.practicesPerMonth || 0} this month
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Streak */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl hover:scale-105 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-red-100 rounded-xl p-3">
+                  <span className="text-2xl">🔥</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 font-medium">Current Streak</p>
+                  <p className="text-3xl font-black text-red-600">{progress.currentStreak || 0} days</p>
+                  <p className="text-xs text-gray-500 mt-1">Keep it going!</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Best Streak */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl hover:scale-105 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-yellow-100 rounded-xl p-3">
+                  <span className="text-2xl">⭐</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 font-medium">Best Streak</p>
+                  <p className="text-3xl font-black text-yellow-600">{progress.bestStreak || 0} days</p>
+                  <p className="text-xs text-gray-500 mt-1">Personal record!</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Time Spent */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl hover:scale-105 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-indigo-100 rounded-xl p-3">
+                  <span className="text-2xl">⏱️</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 font-medium">Time Practiced</p>
+                  <p className="text-3xl font-black text-indigo-600">{progress.totalTimeSpent?.formatted || '0s'}</p>
+                  <p className="text-xs text-gray-500 mt-1">Total time spent</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Tabs */}
           <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
-            {['overview', 'trends', 'achievements'].map(tab => (
+            {['overview', 'achievements'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -331,98 +391,101 @@ export default function AdvancedProgressDashboard() {
                 </div>
               </div>
 
-              {/* Radar Chart - Skills Overview */}
-              {progress.criteriaProgress && (
+              {/* Average Improvement Rate */}
+              {progress.improvementRate && progress.improvementRate.trend && progress.improvementRate.trend.length > 0 && (
                 <div className="bg-white rounded-2xl p-8 shadow-2xl">
-                  <h2 className="text-2xl font-black text-gray-900 mb-6">🎯 Skills Profile</h2>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <RadarChart data={radarData}>
-                      <PolarGrid stroke="#e5e7eb" />
-                      <PolarAngleAxis dataKey="criteria" tick={{ fill: '#374151', fontWeight: 'bold' }} />
-                      <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                      <Radar name="Current" dataKey="current" stroke="#9333ea" fill="#9333ea" fillOpacity={0.6} />
-                      <Radar name="Best" dataKey="best" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
-                      <Legend />
-                      <Tooltip contentStyle={{ backgroundColor: 'white', border: '2px solid #9333ea', borderRadius: '8px', fontWeight: 'bold' }} />
-                    </RadarChart>
+                  <h2 className="text-2xl font-black text-gray-900 mb-6">📊 Average Improvement Rate</h2>
+                  <p className="text-gray-600 mb-4">Improvement per 10 practice sessions</p>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={progress.improvementRate.trend}>
+                      <defs>
+                        <linearGradient id="colorImprovement" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="period" label={{ value: 'Period (10 sessions)', position: 'insideBottom', offset: -5 }} />
+                      <YAxis label={{ value: 'Improvement (points)', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'white', 
+                          border: '2px solid #10b981', 
+                          borderRadius: '8px', 
+                          fontWeight: 'bold' 
+                        }}
+                        formatter={(value) => [`${value > 0 ? '+' : ''}${value} pts`, 'Improvement']}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="improvement" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorImprovement)"
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {progress.improvementRate.trend.slice(-3).map((period, idx) => (
+                      <div key={idx} className="bg-green-50 rounded-lg p-4 border border-green-200">
+                        <p className="text-sm text-gray-600 mb-1">Period {period.period}</p>
+                        <p className={`text-2xl font-black ${period.improvement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {period.improvement > 0 ? '+' : ''}{period.improvement} pts
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{period.sessions} sessions</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Practice Calendar Heatmap */}
               <div className="bg-white rounded-2xl p-8 shadow-2xl">
                 <h2 className="text-2xl font-black text-gray-900 mb-6">📅 Practice Calendar</h2>
-                <div className="grid grid-cols-7 gap-2">
-                  {calendar.map((day, idx) => (
-                    <div
-                      key={idx}
-                      className="aspect-square rounded-lg transition-transform hover:scale-110 cursor-pointer"
-                      style={{
-                        backgroundColor: day.count === 0 ? '#f3f4f6' : 
-                          day.avgScore >= 80 ? '#10b981' :
-                          day.avgScore >= 60 ? '#fbbf24' : '#ef4444',
-                        opacity: day.count === 0 ? 0.3 : 0.6 + (day.count * 0.1)
-                      }}
-                      title={`${day.date}: ${day.count} practice(s), Avg: ${day.avgScore}`}
-                    />
-                  ))}
-                </div>
-                <div className="flex items-center gap-6 mt-6 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                    <span>No practice</span>
+                {calendar && calendar.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-7 gap-2">
+                      {calendar.map((day, idx) => (
+                        <div
+                          key={idx}
+                          className="aspect-square rounded-lg transition-transform hover:scale-110 cursor-pointer"
+                          style={{
+                            backgroundColor: day.count === 0 ? '#f3f4f6' : 
+                              day.avgScore >= 80 ? '#10b981' :
+                              day.avgScore >= 60 ? '#fbbf24' : '#ef4444',
+                            opacity: day.count === 0 ? 0.3 : Math.min(0.6 + (day.count * 0.1), 1)
+                          }}
+                          title={`${day.date}: ${day.count} practice(s), Avg: ${day.avgScore || 0}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-6 mt-6 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                        <span>No practice</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-500 rounded"></div>
+                        <span>&lt;60</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                        <span>60-79</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-green-500 rounded"></div>
+                        <span>80+</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <p className="text-lg">No calendar data available</p>
+                    <p className="text-sm mt-2">Calendar data will appear as you practice</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-red-500 rounded"></div>
-                    <span>&lt;60</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                    <span>60-79</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded"></div>
-                    <span>80+</span>
-                  </div>
-                </div>
+                )}
               </div>
-            </div>
-          )}
-
-          {/* TRENDS TAB */}
-          {activeTab === 'trends' && (
-            <div className="space-y-6">
-              {/* Words Per Minute Trend */}
-              {progress.metricsTrends?.wordsPerMinute && (
-                <div className="bg-white rounded-2xl p-8 shadow-2xl">
-                  <h2 className="text-2xl font-black text-gray-900 mb-6">🗣️ Words Per Minute</h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={progress.metricsTrends.wordsPerMinute}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="practice" />
-                      <YAxis />
-                      <Tooltip contentStyle={{ backgroundColor: 'white', border: '2px solid #3b82f6', borderRadius: '8px', fontWeight: 'bold' }} />
-                      <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 5 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-
-              {/* Filler Words Trend */}
-              {progress.metricsTrends?.fillerWordCount && (
-                <div className="bg-white rounded-2xl p-8 shadow-2xl">
-                  <h2 className="text-2xl font-black text-gray-900 mb-6">⚠️ Filler Words Trend</h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={progress.metricsTrends.fillerWordCount}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="practice" />
-                      <YAxis />
-                      <Tooltip contentStyle={{ backgroundColor: 'white', border: '2px solid #f59e0b', borderRadius: '8px', fontWeight: 'bold' }} />
-                      <Bar dataKey="value" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
             </div>
           )}
 

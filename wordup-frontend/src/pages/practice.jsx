@@ -29,6 +29,8 @@ export default function Practice() {
   const [pronunciationResult, setPronunciationResult] = useState(null);
   const [pronunciationLoading, setPronunciationLoading] = useState(false);
   const [pronunciationError, setPronunciationError] = useState("");
+  const [improvedTranscript, setImprovedTranscript] = useState("");
+  const [isImproving, setIsImproving] = useState(false);
   
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef("");
@@ -220,7 +222,8 @@ export default function Practice() {
       const sentences = transcriptText.split(/[.!?]+/).filter(s => s.trim().length > 0);
       const score = feedbackData?.overallScore || scoreValue || calculateBasicScore(transcriptText, fillerAnalysis.count, wordCount);
 
-      const response = await fetch('http://localhost:5000/api/practice', {
+      // Save practice session
+      const practiceResponse = await fetch('http://localhost:5000/api/practice', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -238,13 +241,64 @@ export default function Practice() {
         })
       });
 
-      const data = await response.json();
+      const practiceData = await practiceResponse.json();
 
-      if (data.success) {
-        setSaveMessage("✅ Session saved to dashboard successfully!");
-        setTimeout(() => setSaveMessage(""), 3000);
+      // Also save speech to saved speeches
+      if (transcriptText && transcriptText.trim()) {
+        try {
+          // Generate title from transcript (first 50 chars)
+          const transcriptPreview = transcriptText.trim().substring(0, 50);
+          const title = transcriptPreview.length < transcriptText.trim().length 
+            ? `${transcriptPreview}...` 
+            : transcriptPreview || 'Practice Session';
+
+          const speechResponse = await fetch('http://localhost:5000/speech', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: title.length > 100 ? title.substring(0, 100) : title,
+              originalDraft: transcriptText,
+              improvedVersion: improvedTranscript || transcriptText, // Include improved if available
+              aiSuggestions: feedbackData ? JSON.stringify(feedbackData) : '',
+              analysis: {
+                strengths: feedbackData?.strengths || [],
+                improvements: feedbackData?.improvements || [],
+                grammarIssues: [],
+                vocabularyEnhancements: []
+              }
+            })
+          });
+
+          const speechData = await speechResponse.json();
+          
+          if (practiceData.success && speechData.success) {
+            setSaveMessage("✅ Session and speech saved successfully!");
+            setTimeout(() => setSaveMessage(""), 5000);
+          } else if (practiceData.success) {
+            setSaveMessage("✅ Session saved! (Speech save had issues)");
+            setTimeout(() => setSaveMessage(""), 3000);
+          } else {
+            setSaveMessage("❌ Failed to save session");
+          }
+        } catch (speechError) {
+          console.error('Failed to save speech:', speechError);
+          if (practiceData.success) {
+            setSaveMessage("✅ Session saved! (Speech save failed)");
+            setTimeout(() => setSaveMessage(""), 3000);
+          } else {
+            setSaveMessage("❌ Failed to save session");
+          }
+        }
       } else {
-        setSaveMessage("❌ Failed to save session");
+        if (practiceData.success) {
+          setSaveMessage("✅ Session saved to dashboard successfully!");
+          setTimeout(() => setSaveMessage(""), 3000);
+        } else {
+          setSaveMessage("❌ Failed to save session");
+        }
       }
 
     } catch (error) {
@@ -261,6 +315,7 @@ export default function Practice() {
     setFeedback(null);
     setCurrentAttempt(null);
     setSaveMessage("");
+    setImprovedTranscript("");
     finalTranscriptRef.current = "";
     // Don't reset attempts or showComparison - keep the history
   };
@@ -435,6 +490,7 @@ export default function Practice() {
 
     setIsAnalyzing(true);
     setFeedback(null);
+    setImprovedTranscript("");
 
     try {
       const result = await getAIFeedback(text);
@@ -474,6 +530,9 @@ export default function Practice() {
         autoSaveAttempt(text, basicFeedback, duration);
       }
 
+      // Automatically get improved version of the transcript
+      await getImprovedVersion(text);
+
     } catch (error) {
       console.error("Analysis error:", error);
       
@@ -495,8 +554,40 @@ export default function Practice() {
       
       setFeedback(basicFeedback);
       autoSaveAttempt(text, basicFeedback, duration);
+      
+      // Still try to get improved version even on error
+      await getImprovedVersion(text);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const getImprovedVersion = async (text) => {
+    if (!text || text.trim().length === 0) return;
+    
+    setIsImproving(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/ai/improve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          draft: text,
+          analysisType: 'full',
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success && data.improvedVersion) {
+        setImprovedTranscript(data.improvedVersion);
+      }
+    } catch (error) {
+      console.error("Error getting improved version:", error);
+      // Don't show error to user, just silently fail
+    } finally {
+      setIsImproving(false);
     }
   };
 
@@ -742,6 +833,16 @@ export default function Practice() {
                 </p>
               )}
 
+              {isImproving && (
+                <p className="text-purple-600 font-bold flex items-center gap-2">
+                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  AI is improving your speech...
+                </p>
+              )}
+
               {saveMessage && (
                 <p className={`text-sm font-semibold ${saveMessage.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
                   {saveMessage}
@@ -805,6 +906,43 @@ export default function Practice() {
                 )}
               </div>
             )}
+
+            {improvedTranscript && (
+              <div className="mt-6 bg-white rounded-2xl shadow-xl p-6 border-2 border-emerald-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-xl font-black text-gray-900">AI-Improved Version</h3>
+                  <span className="ml-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                    ✓ Auto-Generated
+                  </span>
+                </div>
+                <div className="mb-3 p-3 bg-emerald-50 border-2 border-emerald-200 rounded-lg">
+                  <p className="text-emerald-700 text-sm font-semibold flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    This is an improved version of what you said, with grammar corrections, better word choices, and enhanced clarity. It will be saved automatically when you save your attempt.
+                  </p>
+                </div>
+                <div className="p-6 bg-emerald-50 rounded-xl text-gray-800 shadow-inner border border-emerald-200">
+                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {improvedTranscript}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-medium">
+                      Words: <span className="font-bold text-emerald-600">{improvedTranscript.trim().split(/\s+/).filter(w => w).length}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {feedback && !feedback.rawFeedback && (
@@ -838,6 +976,14 @@ export default function Practice() {
                       </svg>
                       {isSaving ? 'Saving...' : 'Save This Attempt'}
                     </button>
+                    {saveMessage && saveMessage.includes('✅') && (
+                      <button
+                        onClick={() => navigate('/speeches')}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-all shadow-md text-sm"
+                      >
+                        View Saved Speeches →
+                      </button>
+                    )}
                     {attempts.length > 0 && (
                       <button
                         onClick={() => setShowComparison(!showComparison)}

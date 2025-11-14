@@ -25,7 +25,15 @@ router.get('/overall', authMiddleware, async (req, res) => {
           improvementTrend: [],
           criteriaProgress: null,
           metricsTrends: null,
-          achievements: []
+          achievements: [],
+          consistencyScore: 0,
+          practicesPerWeek: 0,
+          practicesPerMonth: 0,
+          currentStreak: 0,
+          bestStreak: 0,
+          improvementRate: { per10Sessions: null, perWeek: null, trend: [] },
+          skillLevel: { level: 'Beginner', badge: '🌱', color: 'green', description: 'Start practicing to level up!' },
+          totalTimeSpent: { totalSeconds: 0, hours: 0, minutes: 0, seconds: 0, formatted: '0s' }
         }
       });
     }
@@ -52,16 +60,23 @@ router.get('/overall', authMiddleware, async (req, res) => {
     const metricsTrends = {
       wordsPerMinute: sessions.map((s, idx) => ({
         practice: idx + 1,
-        value: s.wordsPerMinute || 0
+        value: s.metrics?.wordsPerMinute || 0
       })),
       fillerWordCount: sessions.map((s, idx) => ({
         practice: idx + 1,
-        value: s.fillerWordCount || 0
+        value: s.metrics?.fillerWordCount || 0
       }))
     };
 
     // Achievements
     const achievements = calculateAchievements(sessions);
+
+    // Calculate additional metrics
+    const consistencyMetrics = calculateConsistencyMetrics(sessions);
+    const streakMetrics = calculateStreakMetrics(sessions);
+    const improvementRate = calculateImprovementRate(sessions);
+    const skillLevel = calculateSkillLevel(averageScore, latestScore);
+    const totalTimeSpent = calculateTotalTimeSpent(sessions);
 
     res.json({
       success: true,
@@ -76,7 +91,15 @@ router.get('/overall', authMiddleware, async (req, res) => {
         improvementTrend,
         criteriaProgress,
         metricsTrends,
-        achievements
+        achievements,
+        consistencyScore: consistencyMetrics.consistencyScore,
+        practicesPerWeek: consistencyMetrics.practicesPerWeek,
+        practicesPerMonth: consistencyMetrics.practicesPerMonth,
+        currentStreak: streakMetrics.currentStreak,
+        bestStreak: streakMetrics.bestStreak,
+        improvementRate,
+        skillLevel,
+        totalTimeSpent
       }
     });
 
@@ -93,7 +116,7 @@ function calculateCriteriaProgress(sessions) {
 
   criteria.forEach(criterion => {
     const scores = sessions
-      .map(s => s.criteriaScores?.[criterion])
+      .map(s => s.detailedScores?.[criterion]?.score)
       .filter(score => score !== undefined && score !== null);
 
     if (scores.length > 0) {
@@ -108,7 +131,7 @@ function calculateCriteriaProgress(sessions) {
         improvement: Math.round(improvement),
         trend: sessions.map((s, idx) => ({
           practice: idx + 1,
-          score: Math.round(s.criteriaScores?.[criterion] || 0)
+          score: Math.round(s.detailedScores?.[criterion]?.score || 0)
         })).filter(t => t.score > 0)
       };
     }
@@ -225,6 +248,211 @@ function checkPracticeStreak(sessions, targetStreak) {
   }
   
   return streak >= targetStreak;
+}
+
+// Calculate consistency metrics
+function calculateConsistencyMetrics(sessions) {
+  if (sessions.length === 0) {
+    return {
+      consistencyScore: 0,
+      practicesPerWeek: 0,
+      practicesPerMonth: 0
+    };
+  }
+
+  const now = new Date();
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const practicesThisWeek = sessions.filter(s => 
+    new Date(s.practiceDate) >= oneWeekAgo
+  ).length;
+
+  const practicesThisMonth = sessions.filter(s => 
+    new Date(s.practiceDate) >= oneMonthAgo
+  ).length;
+
+  // Consistency score: 0-100 based on practices per week (ideal: 3-5 per week)
+  const idealPerWeek = 4;
+  const consistencyScore = Math.min(100, Math.round((practicesThisWeek / idealPerWeek) * 100));
+
+  return {
+    consistencyScore,
+    practicesPerWeek: practicesThisWeek,
+    practicesPerMonth: practicesThisMonth
+  };
+}
+
+// Calculate streak metrics
+function calculateStreakMetrics(sessions) {
+  if (sessions.length === 0) {
+    return {
+      currentStreak: 0,
+      bestStreak: 0
+    };
+  }
+
+  // Get unique practice dates
+  const dates = sessions.map(s => {
+    const d = new Date(s.practiceDate);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  });
+
+  const uniqueDates = [...new Set(dates)].sort((a, b) => b - a); // Most recent first
+
+  // Calculate current streak
+  let currentStreak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTime = today.getTime();
+
+  let checkDate = todayTime;
+  for (const date of uniqueDates) {
+    const dayDiff = (checkDate - date) / (1000 * 60 * 60 * 24);
+    if (dayDiff <= 1 && dayDiff >= 0) {
+      currentStreak++;
+      checkDate = date - (24 * 60 * 60 * 1000); // Move to previous day
+    } else {
+      break;
+    }
+  }
+
+  // Calculate best streak
+  let bestStreak = 1;
+  let tempStreak = 1;
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const dayDiff = (uniqueDates[i - 1] - uniqueDates[i]) / (1000 * 60 * 60 * 24);
+    if (dayDiff === 1) {
+      tempStreak++;
+      bestStreak = Math.max(bestStreak, tempStreak);
+    } else {
+      tempStreak = 1;
+    }
+  }
+
+  return {
+    currentStreak,
+    bestStreak
+  };
+}
+
+// Calculate improvement rate (per 10 sessions or per week)
+function calculateImprovementRate(sessions) {
+  if (sessions.length < 2) {
+    return {
+      per10Sessions: null,
+      perWeek: null,
+      trend: []
+    };
+  }
+
+  // Per 10 sessions
+  const per10Sessions = [];
+  for (let i = 0; i < sessions.length; i += 10) {
+    const chunk = sessions.slice(i, i + 10);
+    if (chunk.length >= 2) {
+      const firstScore = chunk[0].score;
+      const lastScore = chunk[chunk.length - 1].score;
+      const improvement = lastScore - firstScore;
+      per10Sessions.push({
+        period: Math.floor(i / 10) + 1,
+        improvement: Math.round(improvement),
+        sessions: chunk.length
+      });
+    }
+  }
+
+  // Per week
+  const weeklyData = {};
+  sessions.forEach(session => {
+    const date = new Date(session.practiceDate);
+    const weekKey = `${date.getFullYear()}-W${getWeekNumber(date)}`;
+    if (!weeklyData[weekKey]) {
+      weeklyData[weekKey] = [];
+    }
+    weeklyData[weekKey].push(session);
+  });
+
+  const perWeek = [];
+  Object.keys(weeklyData).sort().forEach(weekKey => {
+    const weekSessions = weeklyData[weekKey];
+    if (weekSessions.length >= 2) {
+      const firstScore = weekSessions[0].score;
+      const lastScore = weekSessions[weekSessions.length - 1].score;
+      const improvement = lastScore - firstScore;
+      perWeek.push({
+        week: weekKey,
+        improvement: Math.round(improvement),
+        sessions: weekSessions.length
+      });
+    }
+  });
+
+  return {
+    per10Sessions: per10Sessions.length > 0 ? per10Sessions : null,
+    perWeek: perWeek.length > 0 ? perWeek : null,
+    trend: per10Sessions
+  };
+}
+
+// Helper to get week number
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Calculate skill level
+function calculateSkillLevel(averageScore, latestScore) {
+  const score = Math.max(averageScore, latestScore);
+  
+  if (score >= 85) {
+    return {
+      level: 'Expert',
+      badge: '👑',
+      color: 'purple',
+      description: 'Master level performance!'
+    };
+  } else if (score >= 70) {
+    return {
+      level: 'Intermediate',
+      badge: '⭐',
+      color: 'blue',
+      description: 'Great progress! Keep it up!'
+    };
+  } else {
+    return {
+      level: 'Beginner',
+      badge: '🌱',
+      color: 'green',
+      description: 'Starting your journey!'
+    };
+  }
+}
+
+// Calculate total time spent practicing
+function calculateTotalTimeSpent(sessions) {
+  const totalSeconds = sessions.reduce((sum, session) => {
+    return sum + (session.metrics?.duration || 0);
+  }, 0);
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return {
+    totalSeconds,
+    hours,
+    minutes,
+    seconds,
+    formatted: hours > 0 
+      ? `${hours}h ${minutes}m`
+      : minutes > 0
+      ? `${minutes}m ${seconds}s`
+      : `${seconds}s`
+  };
 }
 
 // GET calendar data for heatmap
